@@ -64,6 +64,17 @@ pip install -e .
 python server.py
 ```
 
+### Run MCP Inspector
+`npx @modelcontextprotocol/inspector`
+
+### Run with devtunnel
+```
+devtunnel user login
+devtunnel create fast-mcp-server -a --host-header unchanged
+devtunnel port create fast-mcp-server -p 8000
+devtunnel host fast-mcp-server
+```
+
 ## License
 
 See LICENSE file for details.

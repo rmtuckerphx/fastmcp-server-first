@@ -1,7 +1,6 @@
 """Tests for the FastMCP server."""
 
 
-
 def test_server_imports():
     """Test that the server module can be imported."""
     import server

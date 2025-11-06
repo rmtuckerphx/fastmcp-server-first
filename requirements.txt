@@ -1,0 +1,4 @@
+# FastMCP Server Dependencies
+fastmcp>=0.2.0
+starlette
+requests  # Added for health check in Dockerfile

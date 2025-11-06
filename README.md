@@ -64,6 +64,22 @@ pip install -e .
 python server.py
 ```
 
+### Using Docker local
+
+Build and run
+
+```
+docker build -t fastmcp-server .
+docker run -p 8000:8000 fastmcp-server
+```
+
+View running containers
+`docker ps`
+
+View container logs
+`
+
+
 ### Run MCP Inspector
 `npx @modelcontextprotocol/inspector`
 
@@ -74,6 +90,7 @@ devtunnel create fast-mcp-server -a --host-header unchanged
 devtunnel port create fast-mcp-server -p 8000
 devtunnel host fast-mcp-server
 ```
+
 
 ## License
 

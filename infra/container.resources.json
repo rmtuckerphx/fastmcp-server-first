@@ -1,0 +1,266 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.38.33.27573",
+      "templateHash": "1433376760942593921"
+    }
+  },
+  "parameters": {
+    "containerRegistryName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Azure Container Registry"
+      }
+    },
+    "containerAppEnvironmentName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Container Apps Environment"
+      }
+    },
+    "containerAppName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Container App"
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Location for all resources"
+      }
+    },
+    "containerImage": {
+      "type": "string",
+      "defaultValue": "nginx:latest",
+      "metadata": {
+        "description": "Container image to deploy"
+      }
+    },
+    "containerPort": {
+      "type": "int",
+      "defaultValue": 8000,
+      "metadata": {
+        "description": "Container port"
+      }
+    },
+    "containerCpuCoreCount": {
+      "type": "string",
+      "defaultValue": "0.5",
+      "metadata": {
+        "description": "CPU allocation for the container"
+      }
+    },
+    "containerMemory": {
+      "type": "string",
+      "defaultValue": "1Gi",
+      "metadata": {
+        "description": "Memory allocation for the container"
+      }
+    },
+    "containerMinReplicas": {
+      "type": "int",
+      "defaultValue": 0,
+      "metadata": {
+        "description": "Minimum number of replicas"
+      }
+    },
+    "containerMaxReplicas": {
+      "type": "int",
+      "defaultValue": 10,
+      "metadata": {
+        "description": "Maximum number of replicas"
+      }
+    },
+    "enableIngress": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable external ingress"
+      }
+    },
+    "ingressAllowInsecure": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Allow insecure traffic"
+      }
+    }
+  },
+  "variables": {
+    "tags": {
+      "environment": "dev",
+      "project": "fastmcp-server"
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.ContainerRegistry/registries",
+      "apiVersion": "2023-07-01",
+      "name": "[parameters('containerRegistryName')]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "sku": {
+        "name": "Basic"
+      },
+      "properties": {
+        "adminUserEnabled": true,
+        "policies": {
+          "quarantinePolicy": {
+            "status": "disabled"
+          },
+          "trustPolicy": {
+            "type": "Notary",
+            "status": "disabled"
+          },
+          "retentionPolicy": {
+            "days": 7,
+            "status": "disabled"
+          }
+        },
+        "encryption": {
+          "status": "disabled"
+        },
+        "dataEndpointEnabled": false,
+        "publicNetworkAccess": "Enabled",
+        "networkRuleBypassOptions": "AzureServices",
+        "zoneRedundancy": "Disabled"
+      }
+    },
+    {
+      "type": "Microsoft.OperationalInsights/workspaces",
+      "apiVersion": "2023-09-01",
+      "name": "[format('{0}-logs', parameters('containerAppEnvironmentName'))]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "properties": {
+        "sku": {
+          "name": "PerGB2018"
+        },
+        "retentionInDays": 30,
+        "features": {
+          "enableLogAccessUsingOnlyResourcePermissions": true
+        },
+        "workspaceCapping": {
+          "dailyQuotaGb": -1
+        },
+        "publicNetworkAccessForIngestion": "Enabled",
+        "publicNetworkAccessForQuery": "Enabled"
+      }
+    },
+    {
+      "type": "Microsoft.App/managedEnvironments",
+      "apiVersion": "2024-03-01",
+      "name": "[parameters('containerAppEnvironmentName')]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "properties": {
+        "appLogsConfiguration": {
+          "destination": "log-analytics",
+          "logAnalyticsConfiguration": {
+            "customerId": "[reference(resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-logs', parameters('containerAppEnvironmentName'))), '2023-09-01').customerId]",
+            "sharedKey": "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-logs', parameters('containerAppEnvironmentName'))), '2023-09-01').primarySharedKey]"
+          }
+        },
+        "zoneRedundant": false
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-logs', parameters('containerAppEnvironmentName')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.App/containerApps",
+      "apiVersion": "2024-03-01",
+      "name": "[parameters('containerAppName')]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "properties": {
+        "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', parameters('containerAppEnvironmentName'))]",
+        "configuration": {
+          "ingress": "[if(parameters('enableIngress'), createObject('external', true(), 'targetPort', parameters('containerPort'), 'allowInsecure', parameters('ingressAllowInsecure')), null())]"
+        },
+        "template": {
+          "revisionSuffix": "initial",
+          "containers": [
+            {
+              "name": "fastmcp-server",
+              "image": "[parameters('containerImage')]"
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.App/managedEnvironments', parameters('containerAppEnvironmentName'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "containerRegistryLoginServer": {
+      "type": "string",
+      "metadata": {
+        "description": "The login server of the Container Registry"
+      },
+      "value": "[reference(resourceId('Microsoft.ContainerRegistry/registries', parameters('containerRegistryName')), '2023-07-01').loginServer]"
+    },
+    "containerRegistryName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the Container Registry"
+      },
+      "value": "[parameters('containerRegistryName')]"
+    },
+    "containerAppsEnvironmentName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the Container Apps Environment"
+      },
+      "value": "[parameters('containerAppEnvironmentName')]"
+    },
+    "containerAppName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the Container App"
+      },
+      "value": "[parameters('containerAppName')]"
+    },
+    "containerAppFQDN": {
+      "type": "string",
+      "metadata": {
+        "description": "The FQDN of the Container App"
+      },
+      "value": "[if(parameters('enableIngress'), reference(resourceId('Microsoft.App/containerApps', parameters('containerAppName')), '2024-03-01').configuration.ingress.fqdn, '')]"
+    },
+    "containerAppURI": {
+      "type": "string",
+      "metadata": {
+        "description": "The URI of the Container App"
+      },
+      "value": "[if(parameters('enableIngress'), format('https://{0}', reference(resourceId('Microsoft.App/containerApps', parameters('containerAppName')), '2024-03-01').configuration.ingress.fqdn), '')]"
+    },
+    "containerRegistryId": {
+      "type": "string",
+      "metadata": {
+        "description": "The resource ID of the Container Registry"
+      },
+      "value": "[resourceId('Microsoft.ContainerRegistry/registries', parameters('containerRegistryName'))]"
+    },
+    "containerAppsEnvironmentId": {
+      "type": "string",
+      "metadata": {
+        "description": "The resource ID of the Container Apps Environment"
+      },
+      "value": "[resourceId('Microsoft.App/managedEnvironments', parameters('containerAppEnvironmentName'))]"
+    },
+    "containerAppId": {
+      "type": "string",
+      "metadata": {
+        "description": "The resource ID of the Container App"
+      },
+      "value": "[resourceId('Microsoft.App/containerApps', parameters('containerAppName'))]"
+    }
+  }
+}

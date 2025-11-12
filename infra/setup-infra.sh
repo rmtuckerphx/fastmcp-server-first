@@ -42,27 +42,40 @@ az group create --name $rg_name --location $location --tags owner=$owner_tag
 
 read -p "Enter suffix for Container resources: " container_suffix
 
-# Define container resource names
+# Define infrastructure resource names
 container_registry_name="acr${container_suffix//[^a-zA-Z0-9]/}"
 container_app_env_name="cae-${container_suffix}"
-container_app="ca-${container_suffix}"
 
-# create container resources by calling container.resources.bicep file passing container_ var as params
-echo "Deploying container resources..."
-az deployment group create --resource-group $rg_name --template-file infra/container.resources.bicep \
+# Deploy infrastructure resources (Container Registry, Container Apps Environment, Log Analytics)
+echo "Deploying infrastructure resources..."
+az deployment group create --resource-group $rg_name --template-file infra/infrastructure.resources.bicep \
   --parameters containerRegistryName=$container_registry_name \
-  containerAppEnvironmentName=$container_app_env_name \
-  containerAppName=$container_app
+  containerAppEnvironmentName=$container_app_env_name
 
 if [ $? -eq 0 ]; then
-  echo "Deployment completed successfully!"
+  echo "Infrastructure deployment completed successfully!"
   echo "Getting deployment outputs..."
-  outputs=$(az deployment group show --resource-group $rg_name --name container.resources --query properties.outputs -o json)
-  container_app_fqdn=$(echo $outputs | jq -r '.containerAppFQDN.value // empty')
+  registry_login_server=$(az deployment group show --resource-group $rg_name --name infrastructure.resources --query 'properties.outputs.containerRegistryLoginServer.value' -o tsv)
+  environment_id=$(az deployment group show --resource-group $rg_name --name infrastructure.resources --query 'properties.outputs.containerAppsEnvironmentId.value' -o tsv)
 
-  if [ -n "$container_app_fqdn" ]; then
-      echo "Container App FQDN: $container_app_fqdn"
-  else
-      echo "Could not retrieve Container App FQDN from deployment outputs"
-  fi 
+  echo "Container Registry: $container_registry_name"
+  echo "Registry Login Server: $registry_login_server"
+  echo "Container Apps Environment: $container_app_env_name"
+  
+  # Save deployment info for use by deploy-container.sh
+  echo "#!/bin/bash" > deployment-info.sh
+  echo "export RESOURCE_GROUP=\"$rg_name\"" >> deployment-info.sh
+  echo "export CONTAINER_REGISTRY_NAME=\"$container_registry_name\"" >> deployment-info.sh
+  echo "export CONTAINER_APP_ENV_NAME=\"$container_app_env_name\"" >> deployment-info.sh
+  echo "export CONTAINER_APP_ENV_ID=\"$environment_id\"" >> deployment-info.sh
+  echo "export REGISTRY_LOGIN_SERVER=\"$registry_login_server\"" >> deployment-info.sh
+  
+  chmod +x deployment-info.sh
+  echo "Deployment information saved to deployment-info.sh"
+  echo ""
+  echo "Next steps:"
+  echo "1. Run './deploy-container.sh' to build and deploy your container application"
+else
+  echo "Infrastructure deployment failed!"
+  exit 1
 fi

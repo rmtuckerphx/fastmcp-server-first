@@ -2,6 +2,9 @@
 
 set -e
 
+# Prevent Git Bash from converting paths on Windows
+export MSYS_NO_PATHCONV=1
+
 echo "FastMCP Server - Container Deployment Script"
 echo "============================================="
 

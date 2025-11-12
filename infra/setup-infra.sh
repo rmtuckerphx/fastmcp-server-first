@@ -2,6 +2,9 @@
 
 set -e
 
+# Prevent Git Bash from converting paths on Windows
+export MSYS_NO_PATHCONV=1
+
 echo "Checking Azure login status..."
 if az account show > /dev/null 2>&1; then
   echo "Already logged in to Azure."

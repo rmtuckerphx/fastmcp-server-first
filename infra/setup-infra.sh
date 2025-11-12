@@ -60,8 +60,9 @@ if [ $? -eq 0 ]; then
   outputs=$(az deployment group show --resource-group $rg_name --name container.resources --query properties.outputs -o json)
   container_app_fqdn=$(echo $outputs | jq -r '.containerAppFQDN.value // empty')
 
-if [ -n "$container_app_fqdn" ]; then
-    echo "Container App FQDN: $container_app_fqdn"
-else
-    echo "Could not retrieve Container App FQDN from deployment outputs"
-fi 
+  if [ -n "$container_app_fqdn" ]; then
+      echo "Container App FQDN: $container_app_fqdn"
+  else
+      echo "Could not retrieve Container App FQDN from deployment outputs"
+  fi 
+fi
